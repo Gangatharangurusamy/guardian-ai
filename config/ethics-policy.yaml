@@ -1,0 +1,73 @@
+# GUARDIAN Ethics Policy Configuration
+# Schema Version: 1.0
+#
+# Severity levels:
+#   - log:   Record the violation silently and continue agent execution.
+#   - warn:  Record the violation and trigger dashboard warning/audit alert,
+#            but allow agent execution to continue.
+#   - block: Halt agent execution immediately by raising EthicsBlockException.
+#            (Execution is only halted if blocking.halt_on_block is set to true)
+
+version: "1.0"
+
+# ---------------------------------------------------------------------------
+# PII (Personally Identifiable Information) Detection
+# ---------------------------------------------------------------------------
+pii:
+  enabled: true
+  severity:
+    default: warn
+    ssn: block                       # Social Security Numbers (always block)
+    credit_card: block               # Credit Cards (always block)
+    api_key: block                   # API keys, JWT, Bearer tokens (always block)
+    email: warn                      # Emails (warn only)
+    phone: warn                      # Phone numbers (warn only)
+    ip_address: log                  # IP Addresses (record silently)
+
+# ---------------------------------------------------------------------------
+# Bias & Fairness Checker
+# ---------------------------------------------------------------------------
+bias:
+  enabled: true
+  severity: warn                     # Bias flags default to warn (never auto-block)
+  
+  # List of protected attribute keywords to scan for
+  protected_attributes:
+    - gender
+    - race
+    - ethnicity
+    - religion
+    - age
+    - disability
+    - nationality
+    - sexual_orientation
+    
+  # Word distance window: flag if a protected attribute appears within this
+  # many words of an evaluative term (e.g. "rejected", "preferred").
+  evaluative_window: 15
+  
+  # Context domains that trigger specialized checks (hiring, lending, etc.)
+  contexts:
+    - hiring
+    - lending
+    - healthcare
+
+# ---------------------------------------------------------------------------
+# Sensitive Domain Classifier
+# ---------------------------------------------------------------------------
+sensitive_domains:
+  enabled: true
+  severity: log
+  
+  # Set to true to classify ambiguous texts using a lightweight LLM call
+  # (via LiteLLM). GUARDIAN looks at your environment variables for any API
+  # keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, GROQ_API_KEY, etc.) and routes
+  # automatically. If no API keys are found, it falls back to keyword classifier.
+  use_llm_classifier: true
+
+# ---------------------------------------------------------------------------
+# Execution Blocking Rule
+# ---------------------------------------------------------------------------
+blocking:
+  # Set false to log block-severity violations without raising EthicsBlockException
+  halt_on_block: true
