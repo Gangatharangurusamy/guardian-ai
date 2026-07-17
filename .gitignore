@@ -1,0 +1,24 @@
+venv/
+.env
+.env*
+.venv*
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Databases (Local developer SQLite traces)
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# Distribution / packaging outputs
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Typing & Coverage caches
+.mypy_cache/
+.coverage
+htmlcov/
