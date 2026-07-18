@@ -39,7 +39,8 @@ class EthicsEngine:
             evaluative_window=self.policy.bias.evaluative_window,
         )
         self._classifier = CategoryClassifier(
-            use_llm=self.policy.sensitive_domains.use_llm_classifier
+            use_llm=self.policy.sensitive_domains.use_llm_classifier,
+            model_name=self.policy.sensitive_domains.model_name,
         )
 
     async def evaluate(self, trace_event: dict[str, Any]) -> list[EthicsViolation]:

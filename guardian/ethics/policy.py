@@ -102,6 +102,8 @@ class SensitiveDomainsPolicy:
     enabled: bool = True
     severity: str = "log"
     use_llm_classifier: bool = True
+    model_name: str = "gpt-4o-mini"
+
 
 
 @dataclass
@@ -241,6 +243,7 @@ class EthicsPolicy:
                 enabled=bool(sd_data.get("enabled", True)),
                 severity=severity,
                 use_llm_classifier=bool(sd_data.get("use_llm_classifier", True)),
+                model_name=str(sd_data.get("model", "gpt-4o-mini")),
             )
 
         # Parse blocking section

@@ -60,13 +60,19 @@ def test_llm_classification_called_on_ambiguity(mock_has_key: MagicMock) -> None
     mock_litellm.completion.return_value = mock_completion_response
 
     with patch.dict(sys.modules, {"litellm": mock_litellm}):
-        classifier = CategoryClassifier(use_llm=True)
+        classifier = CategoryClassifier(use_llm=True, model_name="claude-3-haiku-20240307")
         domain, confidence = classifier.classify(ambiguous_text)
 
         # Verify it mapped the LLM result correctly
         assert domain == SensitiveDomain.HIRING
         assert confidence == 0.85
         assert mock_litellm.completion.called
+        
+        # Verify the model parameter was correctly passed
+        mock_litellm.completion.assert_called_once()
+        called_args, called_kwargs = mock_litellm.completion.call_args
+        assert called_kwargs.get("model") == "claude-3-haiku-20240307"
+
 
 
 @patch("guardian.ethics.category_classifier._has_any_api_key", return_value=True)

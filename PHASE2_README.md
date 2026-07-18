@@ -61,7 +61,18 @@ bias:
 sensitive_domains:
   enabled: true
   severity: log
-  use_llm_classifier: true # Uses LiteLLM to auto-detect any API key in .env
+  use_llm_classifier: true
+  model: gpt-4o-mini # Define classification LLM (e.g. claude-3-haiku-20240307, groq/llama3-8b-8192)
+
+### Configuring LLM Routing via LiteLLM
+The `model:` field under `sensitive_domains` defines which LLM to call for ambiguous text classification. LiteLLM routes the call automatically based on the environment variables present in your `.env` file:
+* **OpenAI**: Set `model: gpt-4o-mini` (requires `OPENAI_API_KEY`)
+* **Anthropic**: Set `model: claude-3-haiku-20240307` (requires `ANTHROPIC_API_KEY`)
+* **Groq**: Set `model: groq/llama3-8b-8192` (requires `GROQ_API_KEY`)
+* **Mistral**: Set `model: mistral/mistral-small` (requires `MISTRAL_API_KEY`)
+
+The default is `gpt-4o-mini`. If no API keys are found in environment variables, LLM classification is silently skipped and keyword classification is used.
+
 
 blocking:
   halt_on_block: true # Set to false to log block-severity flags without halting

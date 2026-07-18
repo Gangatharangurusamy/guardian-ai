@@ -137,7 +137,7 @@ def _score_keywords(text: str) -> dict[SensitiveDomain, float]:
 
 # LRU cache on text hash to avoid repeat LLM calls
 @lru_cache(maxsize=256)
-def _cached_llm_classify(text_hash: str, text_snippet: str) -> tuple[str, float]:
+def _cached_llm_classify(text_hash: str, text_snippet: str, model_name: str) -> tuple[str, float]:
     """Call LLM via LiteLLM to classify text into a sensitive domain.
 
     Cached by text hash. Returns ("none", 0.0) on any failure.
@@ -145,6 +145,7 @@ def _cached_llm_classify(text_hash: str, text_snippet: str) -> tuple[str, float]
     Args:
         text_hash: SHA256 hash of the full text (cache key).
         text_snippet: First 500 chars of text for the LLM prompt.
+        model_name: The name of the model to use.
 
     Returns:
         Tuple of (domain_string, confidence).
@@ -164,7 +165,7 @@ def _cached_llm_classify(text_hash: str, text_snippet: str) -> tuple[str, float]
 
     try:
         response = litellm.completion(
-            model="gpt-4o-mini",
+            model=model_name,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.0,
             max_tokens=50,
@@ -224,8 +225,9 @@ class CategoryClassifier:
             Falls back silently to keyword-only mode otherwise.
     """
 
-    def __init__(self, use_llm: bool = True) -> None:
+    def __init__(self, use_llm: bool = True, model_name: str = "gpt-4o-mini") -> None:
         self._use_llm = use_llm
+        self._model_name = model_name
 
         # Load .env if python-dotenv is available
         try:
@@ -288,7 +290,7 @@ class CategoryClassifier:
             text_snippet = text[:500]
             text_hash = hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
 
-            llm_domain, llm_confidence = _cached_llm_classify(text_hash, text_snippet)
+            llm_domain, llm_confidence = _cached_llm_classify(text_hash, text_snippet, self._model_name)
 
             # Try to map LLM result to enum
             try:
