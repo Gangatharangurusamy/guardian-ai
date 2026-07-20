@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Index, Integer, String, Text, Float
+from sqlalchemy import Boolean, DateTime, Index, Integer, String, Text, Float
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -115,3 +115,51 @@ class EthicsFlagRecord(Base):
             f"agent='{self.agent_name}', violation_type='{self.violation_type}', severity='{self.severity}')>"
         )
 
+
+class RecoveryActionRecord(Base):
+    """Persisted record of a single recovery action taken by the Recovery Engine.
+
+    Written once per recovery attempt — after the action executes but before
+    the outcome is returned. Correlated with trace events via session_id.
+
+    Attributes:
+        id: Auto-incrementing primary key.
+        session_id: UUID4 string correlating with the trace event.
+        agent_name: Name of the agent that was recovered.
+        failure_type: The FailureType that triggered this recovery.
+        root_cause: LLM-generated root cause explanation.
+        suggestion: LLM-generated suggestion that guided action selection.
+        action_taken: The recovery action that was executed.
+        success: Whether the recovery action succeeded.
+        approval_result: 'approved' / 'rejected' / 'timeout' / 'not_required'.
+        retries_attempted: Number of retry attempts made.
+        model_used: LiteLLM model that produced the diagnosis.
+        metadata_json: JSON-serialized extra metadata.
+        recovered_at: Timestamp when recovery completed.
+    """
+
+    __tablename__ = "recovery_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    agent_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    failure_type: Mapped[str] = mapped_column(String(50), nullable=False, default="unknown")
+    root_cause: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    suggestion: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    action_taken: Mapped[str] = mapped_column(String(50), nullable=False)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    approval_result: Mapped[str] = mapped_column(String(20), nullable=False, default="not_required")
+    retries_attempted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    model_used: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    metadata_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    recovered_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<RecoveryActionRecord(id={self.id}, session_id='{self.session_id}', "
+            f"agent='{self.agent_name}', action='{self.action_taken}', success={self.success})>"
+        )

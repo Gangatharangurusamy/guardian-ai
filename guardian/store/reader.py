@@ -17,7 +17,7 @@ from typing import Any
 from sqlalchemy import select
 
 from guardian.store.db import get_session
-from guardian.store.models import TraceEventRecord, EthicsFlagRecord
+from guardian.store.models import TraceEventRecord, EthicsFlagRecord, RecoveryActionRecord
 
 logger = logging.getLogger("guardian")
 
@@ -211,3 +211,102 @@ def get_flags_by_severity(severity: str, limit: int = 50) -> list[dict[str, Any]
         records = session.execute(stmt).scalars().all()
         return [_flag_to_dict(r) for r in records]
 
+
+
+def _recovery_to_dict(record):
+    """Convert a RecoveryActionRecord ORM instance to a plain dict.
+
+    Args:
+        record: The ORM record to convert.
+
+    Returns:
+        A JSON-serializable dict representation of the recovery action.
+    """
+    import json
+    try:
+        metadata = json.loads(record.metadata_json) if record.metadata_json else {}
+    except (json.JSONDecodeError, TypeError):
+        metadata = {}
+    return {
+        "id": record.id,
+        "session_id": record.session_id,
+        "agent_name": record.agent_name,
+        "failure_type": record.failure_type,
+        "root_cause": record.root_cause,
+        "suggestion": record.suggestion,
+        "action_taken": record.action_taken,
+        "success": record.success,
+        "approval_result": record.approval_result,
+        "retries_attempted": record.retries_attempted,
+        "model_used": record.model_used,
+        "metadata": metadata,
+        "recovered_at": record.recovered_at.isoformat() if record.recovered_at else "",
+    }
+
+
+def get_recovery_actions(session_id):
+    """Retrieve all recovery actions for a specific session ID.
+
+    Args:
+        session_id: The UUID4 session identifier.
+
+    Returns:
+        A list of recovery action dictionaries ordered by recovered_at ascending.
+    """
+    from sqlalchemy import select
+    from guardian.store.db import get_session
+    from guardian.store.models import RecoveryActionRecord
+    with get_session() as session:
+        stmt = (
+            select(RecoveryActionRecord)
+            .where(RecoveryActionRecord.session_id == session_id)
+            .order_by(RecoveryActionRecord.recovered_at.asc())
+        )
+        records = session.execute(stmt).scalars().all()
+        return [_recovery_to_dict(r) for r in records]
+
+
+def get_recent_recovery_actions(limit=50):
+    """Retrieve recent recovery actions ordered newest first.
+
+    Args:
+        limit: Maximum number of records to return. Defaults to 50.
+
+    Returns:
+        A list of recovery action dictionaries.
+    """
+    from sqlalchemy import select
+    from guardian.store.db import get_session
+    from guardian.store.models import RecoveryActionRecord
+    with get_session() as session:
+        stmt = (
+            select(RecoveryActionRecord)
+            .order_by(RecoveryActionRecord.recovered_at.desc())
+            .limit(limit)
+        )
+        records = session.execute(stmt).scalars().all()
+        return [_recovery_to_dict(r) for r in records]
+
+
+def get_recovery_actions_by_agent(agent_name, limit=50):
+    """Retrieve recent recovery actions for a specific agent.
+
+    Args:
+        agent_name: The agent name to filter by.
+        limit: Maximum number of records to return. Defaults to 50.
+
+    Returns:
+        A list of recovery action dictionaries ordered newest first.
+    """
+    from sqlalchemy import select
+    from guardian.store.db import get_session
+    from guardian.store.models import RecoveryActionRecord
+    with get_session() as session:
+        stmt = (
+            select(RecoveryActionRecord)
+            .where(RecoveryActionRecord.agent_name == agent_name)
+            .order_by(RecoveryActionRecord.recovered_at.desc())
+            .limit(limit)
+        )
+        records = session.execute(stmt).scalars().all()
+        return [_recovery_to_dict(r) for r in records]
