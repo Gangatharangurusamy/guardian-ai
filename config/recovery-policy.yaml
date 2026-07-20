@@ -17,7 +17,7 @@ version: "1.0"
 # ---------------------------------------------------------------------------
 diagnosis:
   enabled: true
-  model: gpt-4o          # LiteLLM model string — change to match your API key in .env
+  model: groq/llama-3.3-70b-versatile     # LiteLLM model string — change to match your API key in .env
   max_trace_chars: 8000  # Truncate trace JSON before sending to LLM (context limit safety)
   cross_session_lookback: 5  # How many recent failed sessions to include in cross-session diagnosis
 
