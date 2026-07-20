@@ -29,6 +29,8 @@ class TraceContext:
         parent_session_id: Session ID of the parent trace if this is a nested call.
         ended_at: UTC timestamp when the trace ended (set on completion).
         status: Final status of the trace ('success', 'error', or 'retried').
+        raw_input: Full un-truncated first argument, set when recovery_policy
+            is active on @guardian.watch. None otherwise.
     """
 
     session_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -39,6 +41,7 @@ class TraceContext:
     parent_session_id: str | None = None
     ended_at: datetime | None = None
     status: str = "success"
+    raw_input: Any = None
 
 
 # Module-level ContextVar for async-safe trace isolation.

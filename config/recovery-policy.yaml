@@ -1,0 +1,77 @@
+# GUARDIAN Recovery Policy Configuration
+# Schema Version: 1.0
+#
+# This file controls Phase 3 — Diagnosis Agent + Recovery Engine.
+# All LLM calls use LiteLLM — set the matching API key in .env.
+#
+# Supported model strings:
+#   OpenAI:    gpt-4o, gpt-4o-mini, gpt-4-turbo
+#   Anthropic: claude-3-5-sonnet-20241022, claude-3-haiku-20240307
+#   Groq:      groq/llama3-70b-8192, groq/mixtral-8x7b-32768
+#   Mistral:   mistral/mistral-large, mistral/mistral-medium
+
+version: "1.0"
+
+# ---------------------------------------------------------------------------
+# Diagnosis — LLM-powered root-cause analysis
+# ---------------------------------------------------------------------------
+diagnosis:
+  enabled: true
+  model: gpt-4o          # LiteLLM model string — change to match your API key in .env
+  max_trace_chars: 8000  # Truncate trace JSON before sending to LLM (context limit safety)
+  cross_session_lookback: 5  # How many recent failed sessions to include in cross-session diagnosis
+
+# ---------------------------------------------------------------------------
+# Failure Detection — pure-Python heuristics (no LLM)
+# ---------------------------------------------------------------------------
+failure_detection:
+  loop_threshold: 3          # Same tool called N+ times = tool loop signal
+  timeout_ms: 30000          # Duration threshold for timeout signal (milliseconds)
+  error_repeat_threshold: 2  # Same error type appearing N+ times = repeated error signal
+
+# ---------------------------------------------------------------------------
+# Recovery — what actions to take for each failure type
+# ---------------------------------------------------------------------------
+recovery:
+  mode: human_in_loop   # DEFAULT — pause agent, wait for human approval before any action
+                        # Options:
+                        #   human_in_loop   — pause + notify + wait for approval (safest)
+                        #   notify_then_retry — log recovery action, retry automatically
+                        #   auto_retry      — retry silently, user sees only final result
+
+  max_retries: 2        # Maximum auto-retry attempts before escalating to human
+  retry_delay_ms: 1000  # Milliseconds to wait before retry (avoids hammering failing provider)
+
+  # Action mapping — which recovery action to take for each failure type
+  # Options per failure type: retry | switch_model | pause | escalate | log_only
+  actions:
+    tool_loop:       switch_model   # Loop = model is stuck — try a different model
+    timeout:         retry          # Transient timeout — retry once
+    repeated_error:  escalate       # Persistent error needs human review
+    schema_mismatch: retry          # Retry with cleaner prompt
+    ethics_block:    escalate       # Ethics violations must always go to human
+    confidence_drop: switch_model   # Hallucination proxy — try stronger model
+    unknown:         escalate       # Unknown failures → human
+
+  # Fallback model used for switch_model action
+  # Set the matching API key in .env
+  fallback_model: claude-3-5-sonnet-20241022
+
+# ---------------------------------------------------------------------------
+# Circuit Breaker — prevents hammering a failing LLM provider
+# ---------------------------------------------------------------------------
+circuit_breaker:
+  enabled: true
+  failure_threshold: 5      # N failures within window opens the circuit
+  window_seconds: 60        # Rolling time window for failure counting
+  recovery_timeout_s: 120   # Seconds to wait before testing if provider recovered
+
+# ---------------------------------------------------------------------------
+# Approval Gate — human-in-the-loop control
+# Only relevant when mode: human_in_loop
+# ---------------------------------------------------------------------------
+approval:
+  method: cli               # cli = print to terminal and wait for y/n input
+                            # webhook = POST to approval_webhook_url (Phase 4)
+  timeout_seconds: 300      # Seconds to wait for human input before auto-escalating
+  approval_webhook_url: ""  # Only used when method: webhook (Phase 4)

@@ -158,6 +158,7 @@ def watch(
     agent_name: str | None = None,
     policy: str | None = None,
     on_trace: Callable[[dict[str, Any]], Any] | None = None,
+    recovery_policy: str | None = None,
 ) -> Callable[..., Any]:
     """Decorator factory that instruments an agent function for tracing.
 
@@ -168,29 +169,42 @@ def watch(
     Args:
         agent_name: Human-readable name for the agent. Defaults to the
             function name if not provided.
-        policy: Path to an ethics policy YAML file (reserved for Phase 2).
-            Stored in trace metadata but not processed in Phase 1.
+        policy: Path to an ethics policy YAML file (Phase 2).
+            Stored in trace metadata and processed by the Ethics Engine.
         on_trace: Optional callback ``(trace_event: dict) -> None`` called
             with the serialized trace when the outermost watched function
             completes. If None, uses the global callback set by
             ``guardian.init()``, or falls back to logging.
+        recovery_policy: Path to a recovery policy YAML file (Phase 3).
+            Enables automatic failure detection, LLM diagnosis, and
+            recovery actions after the agent run completes.
+            If None, watchdog and recovery are completely skipped.
 
     Returns:
         A decorator that wraps the target function with tracing.
 
     Example::
 
-        @watch("my_agent")
-        def agent_fn(prompt: str) -> str:
-            return "response"
-
-        @watch("my_async_agent")
-        async def async_agent_fn(prompt: str) -> str:
+        @watch("my_agent", recovery_policy="config/recovery-policy.yaml")
+        async def agent_fn(prompt: str) -> str:
             return "response"
     """
 
     def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         resolved_name = agent_name or func.__name__
+
+        # Cache recovery policy at decoration time (Q4) — load once, not per call.
+        _recovery_policy = None
+        if recovery_policy is not None:
+            try:
+                from guardian.recovery.policy import RecoveryPolicy as _RecPol
+                _recovery_policy = _RecPol.load(recovery_policy)
+            except Exception as _rp_exc:
+                logger.warning(
+                    "GUARDIAN: Failed to load recovery policy '%s': %s",
+                    recovery_policy,
+                    _rp_exc,
+                )
 
         if inspect.iscoroutinefunction(func):
 
@@ -240,6 +254,37 @@ def watch(
                                     raise
                                 except Exception as eth_exc:
                                     logger.warning("Ethics evaluation failed: %s", eth_exc, exc_info=True)
+                            # Watchdog + Recovery (Phase 3)
+                            if _recovery_policy is not None:
+                                # Set raw_input for full first-arg capture (Correction 3)
+                                if args:
+                                    ctx.raw_input = args[0]
+                                _trace_event = to_json(ctx)
+                                if _should_run_watchdog(_trace_event, _recovery_policy):
+                                    try:
+                                        from guardian.watchdog import FailureDetector, Diagnoser
+                                        from guardian.recovery.engine import RecoveryEngine
+                                        _detector = FailureDetector(
+                                            loop_threshold=_recovery_policy.failure_detection.loop_threshold,
+                                            timeout_ms=_recovery_policy.failure_detection.timeout_ms,
+                                            error_repeat_threshold=_recovery_policy.failure_detection.error_repeat_threshold,
+                                        )
+                                        _signals = _detector.detect(_trace_event)
+                                        if _signals:
+                                            _diagnoser = Diagnoser(
+                                                model_name=_recovery_policy.diagnosis.model,
+                                                max_trace_chars=_recovery_policy.diagnosis.max_trace_chars,
+                                            )
+                                            _diagnosis = await _diagnoser.diagnose(_trace_event, _signals)
+                                            _rec_engine = RecoveryEngine(policy=_recovery_policy)
+                                            await _rec_engine.recover(
+                                                diagnosis=_diagnosis,
+                                                original_fn=func,
+                                                original_args=args,
+                                                original_kwargs=kwargs,
+                                            )
+                                    except Exception as _wd_exc:
+                                        logger.warning("GUARDIAN watchdog/recovery error: %s", _wd_exc)
                 else:
                     ctx = parent
                     try:
@@ -310,6 +355,37 @@ def watch(
                                     raise
                                 except Exception as eth_exc:
                                     logger.warning("Ethics evaluation failed: %s", eth_exc, exc_info=True)
+                            # Watchdog + Recovery (Phase 3)
+                            if _recovery_policy is not None:
+                                # Set raw_input for full first-arg capture (Correction 3)
+                                if args:
+                                    ctx.raw_input = args[0]
+                                _trace_event = to_json(ctx)
+                                if _should_run_watchdog(_trace_event, _recovery_policy):
+                                    try:
+                                        from guardian.watchdog import FailureDetector, Diagnoser
+                                        from guardian.recovery.engine import RecoveryEngine
+                                        _detector = FailureDetector(
+                                            loop_threshold=_recovery_policy.failure_detection.loop_threshold,
+                                            timeout_ms=_recovery_policy.failure_detection.timeout_ms,
+                                            error_repeat_threshold=_recovery_policy.failure_detection.error_repeat_threshold,
+                                        )
+                                        _signals = _detector.detect(_trace_event)
+                                        if _signals:
+                                            _diagnoser = Diagnoser(
+                                                model_name=_recovery_policy.diagnosis.model,
+                                                max_trace_chars=_recovery_policy.diagnosis.max_trace_chars,
+                                            )
+                                            _diagnosis = _diagnoser.diagnose_sync(_trace_event, _signals)
+                                            _rec_engine = RecoveryEngine(policy=_recovery_policy)
+                                            _rec_engine.recover_sync(
+                                                diagnosis=_diagnosis,
+                                                original_fn=func,
+                                                original_args=args,
+                                                original_kwargs=kwargs,
+                                            )
+                                    except Exception as _wd_exc:
+                                        logger.warning("GUARDIAN watchdog/recovery error: %s", _wd_exc)
                 else:
                     ctx = parent
                     try:
@@ -329,8 +405,64 @@ def watch(
                             exception=exception,
                         )
                         _emit_trace(ctx, captured, is_root, on_trace)
+                        # Watchdog + Recovery (Phase 3)
+                        if _recovery_policy is not None:
+                            if args:
+                                ctx.raw_input = args[0]
+                            _trace_event = to_json(ctx)
+                            if _should_run_watchdog(_trace_event, _recovery_policy):
+                                try:
+                                    from guardian.watchdog import FailureDetector, Diagnoser
+                                    from guardian.recovery.engine import RecoveryEngine
+                                    _detector = FailureDetector(
+                                        loop_threshold=_recovery_policy.failure_detection.loop_threshold,
+                                        timeout_ms=_recovery_policy.failure_detection.timeout_ms,
+                                        error_repeat_threshold=_recovery_policy.failure_detection.error_repeat_threshold,
+                                    )
+                                    _signals = _detector.detect(_trace_event)
+                                    if _signals:
+                                        _diagnoser = Diagnoser(
+                                            model_name=_recovery_policy.diagnosis.model,
+                                            max_trace_chars=_recovery_policy.diagnosis.max_trace_chars,
+                                        )
+                                        _diagnosis = _diagnoser.diagnose_sync(_trace_event, _signals)
+                                        _rec_engine = RecoveryEngine(policy=_recovery_policy)
+                                        _rec_engine.recover_sync(
+                                            diagnosis=_diagnosis,
+                                            original_fn=func,
+                                            original_args=args,
+                                            original_kwargs=kwargs,
+                                        )
+                                except Exception as _wd_exc:
+                                    logger.warning("GUARDIAN watchdog/recovery error: %s", _wd_exc)
 
 
             return sync_wrapper
 
     return decorator
+
+
+def _should_run_watchdog(trace_event: dict[str, Any], policy: Any) -> bool:
+    """Return True if watchdog analysis should run for this trace.
+
+    Runs only when:
+    - The trace status is not 'success' (something went wrong), OR
+    - At least one call has retry_count > 0 (retries occurred)
+
+    If diagnosis is disabled in the policy, always returns False.
+
+    Args:
+        trace_event: Serialized trace event dict.
+        policy: Loaded RecoveryPolicy instance.
+
+    Returns:
+        True if watchdog should run.
+    """
+    if not getattr(getattr(policy, 'diagnosis', None), 'enabled', True):
+        return False
+    if trace_event.get("status") != "success":
+        return True
+    calls = trace_event.get("calls", [])
+    if isinstance(calls, list):
+        return any(c.get("retry_count", 0) > 0 for c in calls if isinstance(c, dict))
+    return False
