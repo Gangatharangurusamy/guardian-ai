@@ -14,7 +14,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Callable
 
 from guardian.store.db import get_session
 from guardian.store.models import TraceEventRecord
@@ -24,6 +24,11 @@ logger = logging.getLogger("guardian")
 # Flush configuration
 _FLUSH_INTERVAL_SECONDS: float = 0.5
 _FLUSH_BATCH_SIZE: int = 50
+
+# Optional post-write callback — set by the API server at startup to enable
+# live WebSocket streaming. If set, called with each trace dict after a
+# successful DB write. Failures are logged as warnings and never crash the writer.
+_post_write_callback: Callable[[dict[str, Any]], None] | None = None
 
 
 def _trace_to_record(trace_event: dict[str, Any]) -> TraceEventRecord:
@@ -158,7 +163,12 @@ class TraceWriter:
             logger.warning("GUARDIAN TraceWriter: Flush loop error: %s", exc)
 
     async def _flush_queue(self) -> None:
-        """Drain all items from the queue and write them to the DB in one batch."""
+        """Drain all items from the queue and write them to the DB in one batch.
+
+        After a successful flush, calls _post_write_callback (if registered)
+        for each trace to enable live WebSocket streaming. Callback failures
+        are logged as warnings and never crash the flush loop.
+        """
         batch: list[dict[str, Any]] = []
         while not self._queue.empty():
             try:
@@ -178,6 +188,15 @@ class TraceWriter:
             logger.debug(
                 "GUARDIAN TraceWriter: Flushed %d trace(s) to database.", len(batch)
             )
+            # Fire post-write callback for each trace (e.g. WebSocket broadcast)
+            if _post_write_callback is not None:
+                for trace_event in batch:
+                    try:
+                        _post_write_callback(trace_event)
+                    except Exception as cb_exc:
+                        logger.warning(
+                            "GUARDIAN TraceWriter: post-write callback failed: %s", cb_exc
+                        )
         except Exception as exc:
             logger.warning(
                 "GUARDIAN TraceWriter: DB write failed for %d trace(s): %s",
@@ -192,6 +211,9 @@ def write_sync(trace_event: dict[str, Any]) -> None:
     Writes directly to the database without queuing. Suitable for simple
     scripts and tests that don't need async batching.
 
+    After a successful write, calls _post_write_callback if registered.
+    Callback failures are logged as warnings and never crash the write.
+
     Never raises — DB errors are logged and the trace is dropped.
 
     Args:
@@ -202,5 +224,13 @@ def write_sync(trace_event: dict[str, Any]) -> None:
         with get_session() as session:
             session.add(record)
         logger.debug("GUARDIAN: Wrote trace %s synchronously.", trace_event.get("session_id"))
+        # Fire post-write callback (e.g. WebSocket broadcast)
+        if _post_write_callback is not None:
+            try:
+                _post_write_callback(trace_event)
+            except Exception as cb_exc:
+                logger.warning(
+                    "GUARDIAN TraceWriter: post-write callback failed: %s", cb_exc
+                )
     except Exception as exc:
         logger.warning("GUARDIAN: Sync write failed: %s", exc)

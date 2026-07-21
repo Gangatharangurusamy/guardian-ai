@@ -17,7 +17,7 @@ from typing import Any
 from sqlalchemy import select
 
 from guardian.store.db import get_session
-from guardian.store.models import TraceEventRecord, EthicsFlagRecord, RecoveryActionRecord
+from guardian.store.models import EthicsFlagRecord, RecoveryActionRecord, TraceEventRecord
 
 logger = logging.getLogger("guardian")
 
@@ -106,6 +106,7 @@ def get_trace(session_id: str) -> dict[str, Any] | None:
 def list_traces(
     agent_name: str | None = None,
     limit: int = 50,
+    offset: int = 0,
 ) -> list[dict[str, Any]]:
     """List trace events, optionally filtered by agent name.
 
@@ -114,6 +115,8 @@ def list_traces(
     Args:
         agent_name: If provided, only return traces for this agent.
         limit: Maximum number of traces to return. Defaults to 50.
+        offset: Number of traces to skip for pagination. Defaults to 0.
+            Applied at the database query level for efficiency.
 
     Returns:
         A list of TraceEvent dicts.
@@ -126,7 +129,7 @@ def list_traces(
         if agent_name is not None:
             stmt = stmt.where(TraceEventRecord.agent_name == agent_name)
 
-        stmt = stmt.limit(limit)
+        stmt = stmt.offset(offset).limit(limit)
         records = session.execute(stmt).scalars().all()
         return [_record_to_dict(r) for r in records]
 
@@ -254,8 +257,8 @@ def get_recovery_actions(session_id):
         A list of recovery action dictionaries ordered by recovered_at ascending.
     """
     from sqlalchemy import select
+
     from guardian.store.db import get_session
-    from guardian.store.models import RecoveryActionRecord
     with get_session() as session:
         stmt = (
             select(RecoveryActionRecord)
@@ -276,8 +279,8 @@ def get_recent_recovery_actions(limit=50):
         A list of recovery action dictionaries.
     """
     from sqlalchemy import select
+
     from guardian.store.db import get_session
-    from guardian.store.models import RecoveryActionRecord
     with get_session() as session:
         stmt = (
             select(RecoveryActionRecord)
@@ -299,8 +302,8 @@ def get_recovery_actions_by_agent(agent_name, limit=50):
         A list of recovery action dictionaries ordered newest first.
     """
     from sqlalchemy import select
+
     from guardian.store.db import get_session
-    from guardian.store.models import RecoveryActionRecord
     with get_session() as session:
         stmt = (
             select(RecoveryActionRecord)
