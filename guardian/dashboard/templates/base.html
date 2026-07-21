@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}GUARDIAN{% endblock %} — Responsible AI Runtime</title>
+  <meta name="description" content="GUARDIAN: Real-time monitoring, ethics enforcement, and compliance reporting for AI agents.">
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+<div class="layout">
+  <!-- Navigation -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <span class="shield">🛡</span>
+      GUARDIAN
+    </div>
+    <div class="nav-links">
+      <a href="/dashboard" class="nav-link {% if page == 'dashboard' %}active{% endif %}" id="nav-dashboard">Dashboard</a>
+      <a href="/dashboard/traces" class="nav-link {% if page == 'traces' %}active{% endif %}" id="nav-traces">Traces</a>
+      <a href="/dashboard/ethics" class="nav-link {% if page == 'ethics' %}active{% endif %}" id="nav-ethics">Ethics</a>
+      <a href="/docs" class="nav-link" id="nav-docs" target="_blank">API Docs ↗</a>
+    </div>
+    <div class="ws-indicator">
+      <div class="ws-dot" id="ws-dot"></div>
+      <span id="ws-text">Connecting…</span>
+    </div>
+  </nav>
+
+  <!-- Page content -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

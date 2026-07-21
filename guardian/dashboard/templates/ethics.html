@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% set page = "ethics" %}
+{% block title %}Ethics Flags{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Ethics Flags</h1>
+  <p>Review detected violations, filter by severity or type, and investigate evidence.</p>
+</div>
+
+<!-- Summary cards -->
+<div class="stat-grid" id="severity-cards">
+  <div class="stat-card">
+    <div class="stat-label">LOG</div>
+    <div class="stat-value" id="count-log" style="color:var(--sev-log)">—</div>
+    <div class="stat-sub">Informational</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">WARN</div>
+    <div class="stat-value" id="count-warn" style="color:var(--sev-warn)">—</div>
+    <div class="stat-sub">Warnings</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">BLOCK</div>
+    <div class="stat-value" id="count-block" style="color:var(--sev-block)">—</div>
+    <div class="stat-sub">Hard blocks</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Last 24h</div>
+    <div class="stat-value" id="count-24h">—</div>
+    <div class="stat-sub">Recent activity</div>
+  </div>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+  <select id="filter-severity" title="Filter by severity">
+    <option value="">All Severities</option>
+    <option value="log">LOG</option>
+    <option value="warn">WARN</option>
+    <option value="block">BLOCK</option>
+  </select>
+  <select id="filter-type" title="Filter by violation type">
+    <option value="">All Types</option>
+  </select>
+  <button class="btn btn-primary" id="btn-apply">Apply</button>
+  <span class="text-muted" style="margin-left:auto;font-size:0.82rem" id="result-count"></span>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div class="table-wrapper">
+    <table id="ethics-table">
+      <thead>
+        <tr>
+          <th>Session</th>
+          <th>Agent</th>
+          <th>Violation Type</th>
+          <th>Severity</th>
+          <th>Description</th>
+          <th>Confidence</th>
+          <th>Detected</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="7" class="text-muted" style="text-align:center;padding:2rem">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let _allFlags = [];
+
+function renderEthicsTable(flags) {
+  const tbody = document.querySelector('#ethics-table tbody');
+  tbody.innerHTML = '';
+  document.getElementById('result-count').textContent = `${flags.length} result(s)`;
+  if (!flags.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-muted" style="text-align:center;padding:2rem">No ethics flags found.</td></tr>';
+    return;
+  }
+  flags.forEach(f => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono truncate" title="${f.session_id||''}">${(f.session_id||'').substring(0,10)}…</td>
+      <td>${f.agent_name||'—'}</td>
+      <td><code style="font-size:0.78rem;color:var(--text-secondary)">${f.violation_type||'—'}</code></td>
+      <td>${severityBadge(f.severity)}</td>
+      <td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${f.description||''}">${f.description||'—'}</td>
+      <td class="mono">${f.confidence != null ? (f.confidence * 100).toFixed(0) + '%' : '—'}</td>
+      <td class="mono">${f.detected_at ? new Date(f.detected_at).toLocaleString() : '—'}</td>
+    `;
+    // Expand row on click to show full evidence
+    tr.addEventListener('click', () => {
+      const next = tr.nextSibling;
+      if (next && next.classList && next.classList.contains('detail-row')) { next.remove(); return; }
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'detail-row';
+      const td = document.createElement('td');
+      td.colSpan = 7;
+      td.innerHTML = `<div class="row-detail open">
+        <strong style="color:var(--accent)">Evidence:</strong>
+        <pre>${f.evidence || '(no evidence)'}</pre>
+        <strong style="color:var(--accent)">Field path:</strong>
+        <pre>${f.field_path || '(none)'}</pre>
+      </div>`;
+      detailRow.appendChild(td);
+      tr.after(detailRow);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function populateTypeFilter(flags) {
+  const sel = document.getElementById('filter-type');
+  const types = [...new Set(flags.map(f => f.violation_type).filter(Boolean))];
+  types.forEach(t => {
+    if (![...sel.options].some(o => o.value === t)) {
+      const opt = document.createElement('option');
+      opt.value = t; opt.textContent = t;
+      sel.appendChild(opt);
+    }
+  });
+}
+
+async function loadAndRender() {
+  try {
+    const sev  = document.getElementById('filter-severity').value;
+    const type = document.getElementById('filter-type').value;
+    let flags = await apiFetch(`/ethics/flags?limit=500${sev ? '&severity=' + sev : ''}`);
+    if (type) flags = flags.filter(f => f.violation_type === type);
+    _allFlags = flags;
+    renderEthicsTable(flags);
+  } catch (err) { console.error(err); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Load summary
+  try {
+    const summary = await apiFetch('/ethics/summary');
+    setStat('count-log',   summary.by_severity?.log   ?? 0);
+    setStat('count-warn',  summary.by_severity?.warn  ?? 0);
+    setStat('count-block', summary.by_severity?.block ?? 0);
+    setStat('count-24h',   summary.recent_24h ?? 0);
+  } catch (_) {}
+
+  // Load all for type filter population
+  try {
+    const allFlags = await apiFetch('/ethics/flags?limit=1000');
+    populateTypeFilter(allFlags);
+  } catch (_) {}
+
+  await loadAndRender();
+  document.getElementById('btn-apply').addEventListener('click', loadAndRender);
+
+  new GuardianWS(() => {}, () => {});
+});
+</script>
+{% endblock %}

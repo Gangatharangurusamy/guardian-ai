@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% set page = "traces" %}
+{% block title %}Traces{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Agent Traces</h1>
+  <p>Browse, filter, and download compliance reports for individual agent sessions.</p>
+</div>
+
+<!-- Filters -->
+<div class="filters">
+  <select id="filter-agent" title="Filter by agent">
+    <option value="">All Agents</option>
+  </select>
+  <select id="filter-status" title="Filter by status">
+    <option value="">All Statuses</option>
+    <option value="success">Success</option>
+    <option value="error">Error</option>
+    <option value="running">Running</option>
+  </select>
+  <button class="btn btn-primary" id="btn-apply-filters">Apply</button>
+  <span class="text-muted" style="margin-left:auto;font-size:0.82rem" id="result-count"></span>
+</div>
+
+<!-- Table -->
+<div class="card">
+  <div class="table-wrapper">
+    <table id="trace-table">
+      <thead>
+        <tr>
+          <th>Session ID</th>
+          <th>Agent</th>
+          <th>Status</th>
+          <th>Duration</th>
+          <th>Started</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="6" class="text-muted" style="text-align:center;padding:2rem">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="pagination" id="pagination"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PAGE_SIZE = 50;
+let _currentPage = 0;
+let _allTraces   = [];
+let _filtered    = [];
+
+async function loadTraces(offset = 0, agentName = '', status = '') {
+  let path = `/traces?limit=${PAGE_SIZE}&offset=${offset}`;
+  if (agentName) path += `&agent_name=${encodeURIComponent(agentName)}`;
+  const traces = await apiFetch(path);
+  return status ? traces.filter(t => t.status === status) : traces;
+}
+
+function populateAgentFilter(traces) {
+  const sel = document.getElementById('filter-agent');
+  const agents = [...new Set(traces.map(t => t.agent_name).filter(Boolean))];
+  agents.forEach(a => {
+    if (![...sel.options].some(o => o.value === a)) {
+      const opt = document.createElement('option');
+      opt.value = a; opt.textContent = a;
+      sel.appendChild(opt);
+    }
+  });
+}
+
+function renderTable(traces) {
+  const tbody = document.querySelector('#trace-table tbody');
+  tbody.innerHTML = '';
+  if (!traces.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-muted" style="text-align:center;padding:2rem">No traces found.</td></tr>';
+    return;
+  }
+  traces.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="mono" title="${t.session_id||''}">${(t.session_id||'').substring(0,12)}…</td>
+      <td>${t.agent_name||'—'}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td class="mono">${t.duration_ms??'—'} ms</td>
+      <td class="mono">${t.started_at ? new Date(t.started_at).toLocaleString() : '—'}</td>
+      <td>
+        <button class="btn btn-outline" style="font-size:0.75rem;padding:0.3rem 0.7rem"
+          onclick="event.stopPropagation();downloadCompliance('${t.session_id}')">
+          ⬇ Compliance
+        </button>
+      </td>
+    `;
+    tr.addEventListener('click', () => {
+      const next = tr.nextSibling;
+      if (next && next.classList && next.classList.contains('detail-row')) { next.remove(); return; }
+      const detailRow = document.createElement('tr');
+      detailRow.className = 'detail-row';
+      const td = document.createElement('td');
+      td.colSpan = 6;
+      td.innerHTML = `<div class="row-detail open"><pre>${JSON.stringify(t, null, 2)}</pre></div>`;
+      detailRow.appendChild(td);
+      tr.after(detailRow);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function renderPagination(total, page) {
+  const container = document.getElementById('pagination');
+  container.innerHTML = '';
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (pages <= 1) return;
+  for (let i = 0; i < pages; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (i === page ? ' active' : '');
+    btn.textContent = i + 1;
+    btn.addEventListener('click', () => {
+      _currentPage = i;
+      renderTable(_filtered.slice(i * PAGE_SIZE, (i + 1) * PAGE_SIZE));
+      renderPagination(total, i);
+    });
+    container.appendChild(btn);
+  }
+}
+
+async function applyFilters() {
+  const agent  = document.getElementById('filter-agent').value;
+  const status = document.getElementById('filter-status').value;
+  try {
+    const traces = await loadTraces(0, agent, status);
+    _filtered = traces;
+    _currentPage = 0;
+    document.getElementById('result-count').textContent = `${traces.length} result(s)`;
+    renderTable(traces.slice(0, PAGE_SIZE));
+    renderPagination(traces.length, 0);
+  } catch (err) { console.error(err); }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  // Initial load — fetch first 500 to populate agent filter
+  try {
+    const traces = await apiFetch('/traces?limit=500');
+    populateAgentFilter(traces);
+  } catch (_) {}
+
+  await applyFilters();
+  document.getElementById('btn-apply-filters').addEventListener('click', applyFilters);
+
+  // Keep WS alive for status indicator
+  new GuardianWS(() => {}, () => {});
+});
+</script>
+{% endblock %}

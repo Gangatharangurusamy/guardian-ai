@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% set page = "dashboard" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1>Overview</h1>
+  <p>Real-time monitoring of agent traces, ethics flags, and recovery actions.</p>
+</div>
+
+<!-- Stat Cards -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total Traces</div>
+    <div class="stat-value" id="stat-traces">—</div>
+    <div class="stat-sub">Last 24 hours</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Ethics Flags</div>
+    <div class="stat-value" id="stat-flags">—</div>
+    <div class="stat-sub">Violations detected</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Recovery Actions</div>
+    <div class="stat-value" id="stat-recovery">—</div>
+    <div class="stat-sub">Auto-recoveries triggered</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Success Rate</div>
+    <div class="stat-value" id="stat-success">—</div>
+    <div class="stat-sub">Recovery success rate</div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="chart-grid">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Traces Over Time</span>
+    </div>
+    <div class="chart-wrapper">
+      <canvas id="line-chart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Ethics by Severity</span>
+    </div>
+    <div class="chart-wrapper">
+      <canvas id="doughnut-chart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Live Tables -->
+<div class="live-grid">
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Recent Traces</span>
+      <a href="/dashboard/traces" class="btn btn-outline">View all</a>
+    </div>
+    <div class="table-wrapper">
+      <table id="trace-table">
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>Agent</th>
+            <th>Status</th>
+            <th>Duration</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="5" class="text-muted" style="text-align:center;padding:2rem">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Recent Ethics Flags</span>
+      <a href="/dashboard/ethics" class="btn btn-outline">View all</a>
+    </div>
+    <div class="table-wrapper">
+      <table id="ethics-table">
+        <thead>
+          <tr>
+            <th>Session</th>
+            <th>Agent</th>
+            <th>Violation</th>
+            <th>Severity</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="5" class="text-muted" style="text-align:center;padding:2rem">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  // Init charts
+  const lineChart     = initLineChart('line-chart');
+  const doughnutChart = initDoughnutChart('doughnut-chart');
+
+  // Initial REST load
+  async function loadAll() {
+    try {
+      const [traces, flags, recovery, summary] = await Promise.all([
+        apiFetch('/traces?limit=50'),
+        apiFetch('/ethics/flags?limit=10'),
+        apiFetch('/recovery/actions?limit=10'),
+        apiFetch('/recovery/summary'),
+      ]);
+
+      setStat('stat-traces',   traces.length);
+      setStat('stat-flags',    flags.length);
+      setStat('stat-recovery', summary.total);
+      setStat('stat-success',  summary.total > 0
+        ? (summary.success_rate * 100).toFixed(1) + '%' : '—');
+
+      updateTraceTable(traces.slice(0, 10));
+      updateEthicsTable(flags);
+      updateLineChart(lineChart, traces);
+      updateDoughnutChart(doughnutChart, flags);
+    } catch (err) {
+      console.error('Dashboard load error:', err);
+    }
+  }
+
+  await loadAll();
+
+  // WebSocket live updates
+  const ws = new GuardianWS(
+    (trace) => {
+      // Prepend new trace to table
+      const tbody = document.querySelector('#trace-table tbody');
+      if (!tbody) return;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="mono truncate" title="${trace.session_id||''}">${(trace.session_id||'').substring(0,8)}…</td>
+        <td>${trace.agent_name||'—'}</td>
+        <td>${statusBadge(trace.status)}</td>
+        <td class="mono">${trace.duration_ms??'—'} ms</td>
+        <td class="mono">${new Date(trace.started_at).toLocaleTimeString()}</td>
+      `;
+      tbody.prepend(tr);
+      // Keep max 10 rows
+      while (tbody.rows.length > 10) tbody.deleteRow(-1);
+
+      // Update stat
+      const statEl = document.getElementById('stat-traces');
+      if (statEl) statEl.textContent = parseInt(statEl.textContent||'0') + 1;
+    },
+    (snapshot) => {
+      updateTraceTable(snapshot.slice(0, 10));
+    }
+  );
+});
+</script>
+{% endblock %}
