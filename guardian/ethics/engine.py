@@ -127,9 +127,10 @@ class EthicsEngine:
         # We do this asynchronously/safely by importing store methods
         if violations:
             try:
+                import json
+
                 from guardian.store.db import get_session
                 from guardian.store.models import EthicsFlagRecord
-                import json
 
                 with get_session() as session:
                     for v in violations:

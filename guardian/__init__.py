@@ -27,7 +27,6 @@ from __future__ import annotations
 __version__ = "0.1.0"
 
 import logging
-from typing import Any
 
 from guardian.sdk.decorator import _set_default_on_trace, watch
 from guardian.store.db import init_db

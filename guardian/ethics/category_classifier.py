@@ -21,7 +21,6 @@ import logging
 import re
 from enum import Enum
 from functools import lru_cache
-from typing import Any
 
 logger = logging.getLogger("guardian.ethics")
 

@@ -12,7 +12,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from guardian.sdk.capture import CapturedCall, estimate_tokens
+from guardian.sdk.capture import CapturedCall
 from guardian.sdk.context import TraceContext
 
 logger = logging.getLogger("guardian")

@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable
 
 from guardian.sdk.capture import CapturedCall, estimate_tokens, truncate
-from guardian.sdk.context import ToolCallRecord, get_current_context, trace_context, TraceContext
+from guardian.sdk.context import TraceContext, get_current_context, trace_context
 from guardian.sdk.serializer import to_json
 
 logger = logging.getLogger("guardian")
@@ -245,9 +245,9 @@ def watch(
                             _emit_trace(ctx, captured, is_root, on_trace)
                             if policy is not None:
                                 trace_event = to_json(ctx)
-                                from guardian.ethics.policy import EthicsPolicy
                                 from guardian.ethics.engine import EthicsEngine
                                 from guardian.ethics.exceptions import EthicsBlockException
+                                from guardian.ethics.policy import EthicsPolicy
                                 try:
                                     eth_policy = EthicsPolicy.load(policy)
                                     engine = EthicsEngine(eth_policy)
@@ -264,8 +264,8 @@ def watch(
                                 _trace_event = to_json(ctx)
                                 if _should_run_watchdog(_trace_event, _recovery_policy):
                                     try:
-                                        from guardian.watchdog import FailureDetector, Diagnoser
                                         from guardian.recovery.engine import RecoveryEngine
+                                        from guardian.watchdog import Diagnoser, FailureDetector
                                         _detector = FailureDetector(
                                             loop_threshold=_recovery_policy.failure_detection.loop_threshold,
                                             timeout_ms=_recovery_policy.failure_detection.timeout_ms,
@@ -346,9 +346,9 @@ def watch(
                             _emit_trace(ctx, captured, is_root, on_trace)
                             if policy is not None:
                                 trace_event = to_json(ctx)
-                                from guardian.ethics.policy import EthicsPolicy
                                 from guardian.ethics.engine import EthicsEngine
                                 from guardian.ethics.exceptions import EthicsBlockException
+                                from guardian.ethics.policy import EthicsPolicy
                                 try:
                                     eth_policy = EthicsPolicy.load(policy)
                                     engine = EthicsEngine(eth_policy)
@@ -365,8 +365,8 @@ def watch(
                                 _trace_event = to_json(ctx)
                                 if _should_run_watchdog(_trace_event, _recovery_policy):
                                     try:
-                                        from guardian.watchdog import FailureDetector, Diagnoser
                                         from guardian.recovery.engine import RecoveryEngine
+                                        from guardian.watchdog import Diagnoser, FailureDetector
                                         _detector = FailureDetector(
                                             loop_threshold=_recovery_policy.failure_detection.loop_threshold,
                                             timeout_ms=_recovery_policy.failure_detection.timeout_ms,
