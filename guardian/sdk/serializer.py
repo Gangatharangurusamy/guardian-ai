@@ -47,6 +47,8 @@ def _serialize_call(call: CapturedCall) -> dict[str, Any]:
     try:
         return {
             "function": call.function_name,
+            "start_time": _safe_isoformat(call.start_time),
+            "end_time": _safe_isoformat(call.end_time),
             "args_preview": call.args_preview,
             "result_preview": call.result_preview,
             "duration_ms": call.duration_ms,
@@ -57,6 +59,8 @@ def _serialize_call(call: CapturedCall) -> dict[str, Any]:
     except Exception:
         return {
             "function": "<unserializable>",
+            "start_time": "",
+            "end_time": "",
             "args_preview": "<unserializable>",
             "result_preview": "<unserializable>",
             "duration_ms": 0,

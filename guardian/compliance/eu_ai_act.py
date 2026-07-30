@@ -169,7 +169,7 @@ class EUAIActExporter:
             events.append({
                 "timestamp": call.get("start_time", ""),
                 "event_type": "tool_call",
-                "detail": f"Called '{call.get('function_name', 'unknown')}'",
+                "detail": f"Called '{call.get('function', 'unknown')}'",
             })
 
         for flag in flags:
@@ -214,6 +214,6 @@ class EUAIActExporter:
             "total_calls": len(calls),
             "estimated_tokens": sum(c.get("estimated_tokens", 0) for c in calls),
             "retry_count": sum(c.get("retry_count", 0) for c in calls),
-            "tool_names_used": list({c.get("function_name", "") for c in calls}),
+            "tool_names_used": list({c.get("function", c.get("function_name", "")) for c in calls if c.get("function") or c.get("function_name")}),
             "guardian_version": "0.1.0",
         }
