@@ -13,6 +13,7 @@ from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Generator
+
 from guardian.sdk.capture import CapturedCall as ToolCallRecord
 
 
