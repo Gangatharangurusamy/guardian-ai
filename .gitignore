@@ -22,3 +22,21 @@ dist/
 .mypy_cache/
 .coverage
 htmlcov/
+
+# Ruff cache
+.ruff_cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+logs/
