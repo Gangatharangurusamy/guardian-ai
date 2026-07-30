@@ -24,8 +24,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        # httpx installed explicitly (Correction 3 — not relying on optional dep group)
-        run: pip install -e ".[all]" pytest pytest-asyncio anyio httpx ruff
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -e ".[all]" pytest pytest-asyncio anyio httpx ruff fastapi litellm jinja2 uvicorn
 
       - name: Run tests
         run: pytest tests/ -v --tb=short
