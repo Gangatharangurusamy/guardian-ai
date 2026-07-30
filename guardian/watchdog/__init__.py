@@ -8,9 +8,9 @@ from .diagnoser import Diagnoser
 from .models import Diagnosis, FailureSignal, FailureType
 
 __all__ = [
-    "FailureDetector",
     "Diagnoser",
+    "Diagnosis",
+    "FailureDetector",
     "FailureSignal",
     "FailureType",
-    "Diagnosis",
 ]
