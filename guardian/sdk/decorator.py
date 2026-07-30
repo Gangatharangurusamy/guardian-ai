@@ -419,7 +419,8 @@ def _should_run_watchdog(trace_event: dict[str, Any], policy: Any) -> bool:
 
     Runs only when:
     - The trace status is not 'success' (something went wrong), OR
-    - At least one call has retry_count > 0 (retries occurred)
+    - At least one call has retry_count > 0 (retries occurred), OR
+    - Any function is called loop_threshold+ times (tool loop in a successful run)
 
     If diagnosis is disabled in the policy, always returns False.
 
@@ -436,7 +437,17 @@ def _should_run_watchdog(trace_event: dict[str, Any], policy: Any) -> bool:
         return True
     calls = trace_event.get("calls", [])
     if isinstance(calls, list):
-        return any(c.get("retry_count", 0) > 0 for c in calls if isinstance(c, dict))
+        if any(c.get("retry_count", 0) > 0 for c in calls if isinstance(c, dict)):
+            return True
+        # Also trigger watchdog for repeated identical tool calls in a "successful" run.
+        # A tool loop can complete without raising an exception — this catches that blind spot.
+        from collections import Counter
+        loop_threshold = getattr(getattr(policy, 'failure_detection', None), 'loop_threshold', 3)
+        func_counts = Counter(
+            c.get("function", "") for c in calls
+            if isinstance(c, dict) and c.get("function", "")
+        )
+        return any(count >= loop_threshold for count in func_counts.values())
     return False
 
 
