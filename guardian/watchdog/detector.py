@@ -162,7 +162,7 @@ class FailureDetector:
         # Group calls by function_name
         by_name: dict[str, list[dict[str, Any]]] = {}
         for call in calls:
-            name = str(call.get("function_name", ""))
+            name = str(call.get("function", ""))
             if name:
                 by_name.setdefault(name, []).append(call)
 
