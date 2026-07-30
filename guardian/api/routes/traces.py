@@ -20,7 +20,11 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
-from guardian.api.schemas import EthicsFlagResponse, RecoveryActionResponse, TraceEventResponse
+from guardian.api.schemas import (
+    EthicsFlagResponse,
+    RecoveryActionResponse,
+    TraceEventResponse,
+)
 
 logger = logging.getLogger("guardian")
 

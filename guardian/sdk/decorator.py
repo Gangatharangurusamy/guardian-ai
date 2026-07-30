@@ -246,7 +246,9 @@ def watch(
                             if policy is not None:
                                 trace_event = to_json(ctx)
                                 from guardian.ethics.engine import EthicsEngine
-                                from guardian.ethics.exceptions import EthicsBlockException
+                                from guardian.ethics.exceptions import (
+                                    EthicsBlockException,
+                                )
                                 from guardian.ethics.policy import EthicsPolicy
                                 try:
                                     eth_policy = EthicsPolicy.load(policy)
@@ -264,8 +266,13 @@ def watch(
                                 _trace_event = to_json(ctx)
                                 if _should_run_watchdog(_trace_event, _recovery_policy):
                                     try:
-                                        from guardian.recovery.engine import RecoveryEngine
-                                        from guardian.watchdog import Diagnoser, FailureDetector
+                                        from guardian.recovery.engine import (
+                                            RecoveryEngine,
+                                        )
+                                        from guardian.watchdog import (
+                                            Diagnoser,
+                                            FailureDetector,
+                                        )
                                         _detector = FailureDetector(
                                             loop_threshold=_recovery_policy.failure_detection.loop_threshold,
                                             timeout_ms=_recovery_policy.failure_detection.timeout_ms,
@@ -347,7 +354,9 @@ def watch(
                             if policy is not None:
                                 trace_event = to_json(ctx)
                                 from guardian.ethics.engine import EthicsEngine
-                                from guardian.ethics.exceptions import EthicsBlockException
+                                from guardian.ethics.exceptions import (
+                                    EthicsBlockException,
+                                )
                                 from guardian.ethics.policy import EthicsPolicy
                                 try:
                                     eth_policy = EthicsPolicy.load(policy)
@@ -365,8 +374,13 @@ def watch(
                                 _trace_event = to_json(ctx)
                                 if _should_run_watchdog(_trace_event, _recovery_policy):
                                     try:
-                                        from guardian.recovery.engine import RecoveryEngine
-                                        from guardian.watchdog import Diagnoser, FailureDetector
+                                        from guardian.recovery.engine import (
+                                            RecoveryEngine,
+                                        )
+                                        from guardian.watchdog import (
+                                            Diagnoser,
+                                            FailureDetector,
+                                        )
                                         _detector = FailureDetector(
                                             loop_threshold=_recovery_policy.failure_detection.loop_threshold,
                                             timeout_ms=_recovery_policy.failure_detection.timeout_ms,

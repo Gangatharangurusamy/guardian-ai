@@ -17,7 +17,11 @@ from typing import Any
 from sqlalchemy import select
 
 from guardian.store.db import get_session
-from guardian.store.models import EthicsFlagRecord, RecoveryActionRecord, TraceEventRecord
+from guardian.store.models import (
+    EthicsFlagRecord,
+    RecoveryActionRecord,
+    TraceEventRecord,
+)
 
 logger = logging.getLogger("guardian")
 

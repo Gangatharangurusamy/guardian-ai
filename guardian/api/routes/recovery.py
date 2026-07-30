@@ -24,7 +24,10 @@ async def get_actions(
     limit: int = Query(default=50, ge=1, le=500),
 ) -> list[dict[str, Any]]:
     """Return recent recovery actions, optionally filtered by agent_name."""
-    from guardian.store.reader import get_recent_recovery_actions, get_recovery_actions_by_agent
+    from guardian.store.reader import (
+        get_recent_recovery_actions,
+        get_recovery_actions_by_agent,
+    )
     if agent_name:
         return get_recovery_actions_by_agent(agent_name, limit=limit)
     return get_recent_recovery_actions(limit=limit)
