@@ -36,7 +36,7 @@ def make_call(
     retry_count=0,
 ):
     return {
-        "function_name": function_name,
+        "function": function_name,
         "result_preview": result_preview,
         "duration_ms": duration_ms,
         "error": error,
